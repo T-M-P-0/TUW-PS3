@@ -1,0 +1,39 @@
+cabal-version:      3.0
+name:               PS3
+version:            0.1.0.0
+license:            MIT
+license-file:       LICENSE
+build-type:         Simple
+
+common warnings
+    ghc-options: -Wall -threaded
+
+library
+  other-modules:
+    AppState,
+    Command,
+    CommandHandler,
+    CommandParser,
+    Editor,
+    KeyInfo,
+    InputReader,
+    VectorUtils
+  hs-source-dirs: src
+  build-depends: 
+    base ^>=4.17.2.1,
+    text >=2.0 && <3.0,
+    vector >=0.12 && <0.13,
+    vty >=5.0 && < 6,
+  default-language: Haskell2010
+
+executable PS3
+    import:           warnings
+    main-is:          Main.hs
+    hs-source-dirs:   app src
+    ghc-options: 
+    build-depends:    
+        base ^>=4.17.2.1 && < 5,
+        text >=2.0 && <3.0,
+        vector >=0.12 && <0.13,
+        vty >=5.0 && < 6,
+    default-language: Haskell2010
