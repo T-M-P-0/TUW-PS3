@@ -15,6 +15,9 @@ handleInput (V.EvKey V.KDown []) = Just (KeyInfo { key = DownArrow, modifier = N
 handleInput (V.EvKey (V.KChar '\t') []) = Just (KeyInfo { key = Char '\t', modifier = None})
 handleInput (V.EvKey (V.KChar c) []) = Just (KeyInfo { key = Char c, modifier = None})
 handleInput (V.EvKey (V.KChar 'c') [V.MCtrl]) = Just (KeyInfo { key = Char 'c', modifier = Ctrl })
+handleInput (V.EvKey (V.KChar 'o') [V.MCtrl]) = Just (KeyInfo { key = Char 'o', modifier = Ctrl })
+handleInput (V.EvKey (V.KChar 's') [V.MCtrl]) = Just (KeyInfo { key = Char 's', modifier = Ctrl })
+handleInput (V.EvKey V.KEsc []) = Just (KeyInfo { key = Esc, modifier = None })
 handleInput (V.EvKey _ _) = Nothing
 
 readInput:: V.Vty -> IO (Maybe KeyInfo)

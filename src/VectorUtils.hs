@@ -11,12 +11,13 @@ insertChar char row col buffer =
     (leftSideOfRow, rightSideOfRow) = Vec.splitAt col currentRow
     updatedRow = if col >= length currentRow then Vec.snoc currentRow char else leftSideOfRow Vec.++ Vec.singleton char Vec.++ rightSideOfRow
 
-deleteChar :: Int -> Int -> Vec.Vector (Vec.Vector Char) -> Vec.Vector (Vec.Vector Char)
+deleteChar :: Int -> Int -> Vec.Vector (Vec.Vector Char) -> (Int, Int, Vec.Vector (Vec.Vector Char))
 deleteChar x y buffer
-  | x > 0 = buffer Vec.// [(y, newRow)]
-  | y > 0 && x > 0 = buffer Vec.// [(y - 1, newRow)]
-  | otherwise = buffer
+  | x > 0 = (x - 1, y, buffer Vec.// [(y, newRow)])
+  | x == 0 && y > 0 = (length $ buffer Vec.! (y - 1), y - 1, left Vec.// [(Vec.length left - 1, Vec.last left Vec.++ row)] Vec.++ Vec.tail right)
+  | otherwise = (x, y, buffer)
   where
+    (left, right) = Vec.splitAt y buffer
     row = buffer Vec.! y
-    (left, right) = Vec.splitAt (x - 1) row
-    newRow = left Vec.++ Vec.tail right
+    (leftSideOfRow, rightSideOfRow) = Vec.splitAt (x - 1) row
+    newRow = leftSideOfRow Vec.++ Vec.tail rightSideOfRow

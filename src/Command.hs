@@ -9,6 +9,11 @@ data Command
   | MoveCursorRight
   | MoveCursorUp
   | MoveCursorDown
+  | ActivateReadFileMode
+  | ActivateWriteFileMode
+  | ExitReadFileMode
+  | ExitWriteFileMode
+  | LoadFile
   | SaveFile
   | Exit
   deriving (Show, Eq)
