@@ -37,6 +37,8 @@ Before running the project, you need to install all the necessary dependencies:
 cabal update
 cabal build
 
+cd interpreter
+pip install -r requirements.txt 
 
 ### Step 2: Run the Project
 
