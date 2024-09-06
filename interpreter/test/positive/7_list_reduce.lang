@@ -1,0 +1,15 @@
+reduce = |acc, op, list| if (is_empty(list)) acc else {
+  head_l = head(list)
+  tail_l = tail(list)
+  acc = op(acc, head_l)
+  reduce(acc, op, tail_l)
+}
+reduce_sum = reduce(0, plus)
+my_list = [1,2,3]
+sum = reduce_sum(my_list)
+print(sum)
+
+reduce_length = reduce(0, |acc,y| plus(acc, 1))
+my_list = [1,2,3]
+length = reduce_length(my_list)
+print(length)

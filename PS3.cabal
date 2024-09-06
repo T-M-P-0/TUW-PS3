@@ -15,6 +15,8 @@ library
     CommandHandler,
     CommandParser,
     Editor,
+    ExtensionHelper,
+    SyntaxAnalyzer,
     KeyInfo,
     InputReader,
     Margin,
@@ -24,6 +26,8 @@ library
     base ^>=4.17.2.1,
     directory >=1.3 && <1.4,
     text >=2.0 && <3.0,
+    process,
+    parsec >= 3.1 && < 4,
     vector >=0.12 && <0.13,
     vty >=5.0 && < 6,
   default-language: Haskell2010
@@ -38,5 +42,7 @@ executable PS3
         directory >=1.3 && <1.4,
         text >=2.0 && <3.0,
         vector >=0.12 && <0.13,
+        process,
+        parsec >= 3.1 && < 4,
         vty >=5.0 && < 6,
     default-language: Haskell2010

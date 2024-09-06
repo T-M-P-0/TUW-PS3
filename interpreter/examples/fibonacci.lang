@@ -1,0 +1,32 @@
+fib = |x| {
+  if (less_than(x,2)) x
+  else plus(fib(minus(x, 1)), fib(minus(x, 2)))
+}
+print(fib(0))   # 0
+print(fib(1))   # 1
+print(fib(2))   # 1
+print(fib(5))   # 5
+print(fib(10))  # 55
+print(fib(19))  # 4181
+
+
+fast_fib = |x| {
+    while = |cond, acc, op| if (cond(acc)) while(cond, op(acc), op) else acc
+
+    acc = [x, [0,1]]
+    cond = |acc| not(eq(head(acc),0))
+    op = |acc| {
+        list = head(tail(acc))
+        first = head(list)
+        second = head(tail(list))
+        [minus(head(acc),1),[second,plus(first, second)]]
+    }
+    result = while(cond, acc, op)
+    head(head(tail(result)))
+}
+
+print(fast_fib(0))      # 0
+print(fast_fib(1))      # 1
+print(fast_fib(2))      # 1
+print(fast_fib(3))      # 2
+print(fast_fib(100))    # 354224848179261915075

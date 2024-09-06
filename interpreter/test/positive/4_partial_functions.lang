@@ -1,0 +1,2 @@
+mult_two = mult(2)
+print(mult_two(2))

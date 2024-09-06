@@ -1,12 +1,16 @@
 module Editor (start) where
 
+import qualified Data.Vector as Vec
+import Data.List ( intercalate )
+import qualified Graphics.Vty as Vty
+import ExtensionHelper
+    ( findMatchingBrace, isBrace, findWordPositions, extractWordAt )
+import SyntaxAnalyzer as Analyzer (execute, Result(..),Error(..))
+import Graphics.Vty (Cursor (Cursor))
 import AppState (AppState (..), CursorPosition (..), Mode (..), Window (..))
 import Command (Command (..))
 import CommandHandler (commandHandler)
 import CommandParser (parse)
-import qualified Data.Vector as Vec
-import Graphics.Vty (Cursor (Cursor))
-import qualified Graphics.Vty as Vty
 import InputReader (readInput)
 import KeyInfo (KeyInfo (..))
 import Margin (Margin (..))
@@ -51,112 +55,71 @@ updateDisplay vty (AppState buffer cursorPos@(CursorPosition x y) (Window width 
       Vty.update vty (Vty.picForImage img) {Vty.picCursor = Vty.Cursor (x + left) (y + top)}
     EditFile -> do
       let img = highlight cursorPos buffer
-      let (Margin left right top bottom) = marginConfigEditMode
-      Vty.update vty (Vty.picForImage img) {Vty.picCursor = Vty.Cursor (x) y}
+      result <- Analyzer.execute $ vector2DToString buffer
+      case result of
+        Success -> do
+           let (Margin left right top bottom) = marginConfigEditMode 
+           Vty.update vty (Vty.picForImage $ Vty.horizCat [img]) {Vty.picCursor = Vty.Cursor (x) y}
+        Failure err -> do
+           let imageError = createErrorImage (Vec.length buffer) err 
+           Vty.update vty (Vty.picForImage $ Vty.vertCat [img, imageError]) {Vty.picCursor = Vty.Cursor (x) y}
 
-findMatchingBrace :: Vec.Vector (Vec.Vector Char) -> CursorPosition -> Maybe CursorPosition
-findMatchingBrace buffer (CursorPosition x y) = do
-  let line = buffer Vec.! y
-  let char = line Vec.!? x
-  case char of
-    Just '{' -> findForward '{' '}' buffer (CursorPosition x y)
-    Just '}' -> findBackward '{' '}' buffer (CursorPosition x y)
-    Just '(' -> findForward '(' ')' buffer (CursorPosition x y)
-    Just ')' -> findBackward '(' ')' buffer (CursorPosition x y)
-    Just '[' -> findForward '[' ']' buffer (CursorPosition x y)
-    Just ']' -> findBackward '[' ']' buffer (CursorPosition x y)
-    _ -> Nothing
 
-findForward :: Char -> Char -> Vec.Vector (Vec.Vector Char) -> CursorPosition -> Maybe CursorPosition
-findForward open close buffer (CursorPosition x y) = search (x + 1) y 0
+createErrorImage :: Int ->  Error  -> Vty.Image
+createErrorImage textLength (LineError num errorText) = errorRow
   where
-    search cx cy openBraceCount
-      | cy >= Vec.length buffer = Nothing
-      | otherwise =
-          let row = buffer Vec.! cy
-              char = row Vec.! cx
-              newCy = if cx + 1 >= Vec.length row then cy + 1 else cy
-           in case char of
-                _
-                  | close == char -> if openBraceCount == 0 then Just (CursorPosition cx cy) else search (cx + 1) newCy (openBraceCount - 1)
-                  | open == char -> search (cx + 1) newCy (openBraceCount + 1)
-                  | otherwise -> search (cx + 1) newCy openBraceCount
-
-findBackward :: Char -> Char -> Vec.Vector (Vec.Vector Char) -> CursorPosition -> Maybe CursorPosition
-findBackward open close buffer (CursorPosition x y) = search x y 0
+    errorRow = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.red) (errorText ++ "[ LineNr. " ++ show num ++ "]")
+createErrorImage textLength (GeneralError errorText) = errorRow
   where
-    search cx cy depth
-      | cy < 0 = Nothing
-      | cx < 0 = search (Vec.length (buffer Vec.! (cy - 1)) - 1) (cy - 1) depth
-      | otherwise =
-          let line = buffer Vec.! cy
-              char = line Vec.! cx
-           in if char == close
-                then search (cx - 1) cy (depth + 1)
-                else
-                  if char == open
-                    then if depth == 0 then Just (CursorPosition cx cy) else search (cx - 1) cy (depth - 1)
-                    else search (cx - 1) cy depth
+    errorRow = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.red) (errorText ++ "[ LineNr. " ++ show textLength ++ "]")
 
 highlight :: CursorPosition -> Vec.Vector (Vec.Vector Char) -> Vty.Image
-highlight cursorPos@(CursorPosition x y) buffer = if x < Vec.length currRow && currChar /= ' ' then highlightWordPositions cursorPos buffer else createImageText buffer
+highlight cursorPos@(CursorPosition x y) buffer
+  | x >= Vec.length currRow = createImageText buffer
+  | isBrace currChar = highlightBracePositions cursorPos buffer
+  | currChar /= ' ' = highlightWordPositions cursorPos buffer
+  | otherwise = createImageText buffer
   where
     currRow = buffer Vec.! y
-    currChar =  currRow Vec.! x 
+    currChar = currRow Vec.! x
+
+highlightBracePositions :: CursorPosition -> Vec.Vector (Vec.Vector Char) -> Vty.Image
+highlightBracePositions cursorPos buffer =
+  case matchingBracePos of
+    (Just matchingBrace) -> bufferToImage (highlightedCursorPos matchingBrace) buffer
+    _ -> createImageText buffer
+  where
+    matchingBracePos = findMatchingBrace buffer cursorPos
+    highlightedCursorPos brace = Vec.fromList [ Vec.fromList [cursorPos, brace]]
 
 highlightWordPositions :: CursorPosition -> Vec.Vector (Vec.Vector Char) -> Vty.Image
-highlightWordPositions (CursorPosition cx cy) buffer = if multipleWordMatches then highlightedImage else createImageText buffer 
+highlightWordPositions (CursorPosition cx cy) buffer = highlightedImage
   where
     currentRow = buffer Vec.! cy
-    currChar =  currentRow Vec.! cx 
     currentWord = extractWordAt cx currentRow
-    positionsToHighlight = Vec.concat $ Vec.toList (findWordPositions currentWord buffer)
-    highlightedImage = Vty.vertCat $ Vec.toList $ Vec.imap (\index row -> rowToImage index row positionsToHighlight) buffer
-    multipleWordMatches = Vec.length positionsToHighlight > length currentWord
-    highlightImage = cx < Vec.length currentRow && currChar /= ' ' && multipleWordMatches
-  
+    positionsToHighlight = findWordPositions currentWord buffer
+    highlightedImage = bufferToImage positionsToHighlight buffer
+
+bufferToImage :: Vec.Vector (Vec.Vector CursorPosition) -> Vec.Vector (Vec.Vector Char) -> Vty.Image
+bufferToImage positionsToHighlight buffer = Vty.vertCat $ Vec.toList $ Vec.imap (\index row -> if Vec.null row then emptyRowToImage else rowToImage index row flattenPositions) buffer
+  where flattenPositions= Vec.concat $ Vec.toList positionsToHighlight
+        emptyRowToImage = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.white) ""
+
 rowToImage :: Int -> Vec.Vector Char -> Vec.Vector CursorPosition -> Vty.Image
 rowToImage rowIndex row positionsToHighlight = Vty.horizCat $ Vec.toList $ Vec.imap charToImageRow row
   where
     charToImageRow :: Int -> Char -> Vty.Image
-    charToImageRow colIndex char =  charToImage char (isHighlighted colIndex)
+    charToImageRow colIndex char = charToImage char (isHighlighted colIndex)
     isHighlighted :: Int -> Bool
     isHighlighted pos = Vec.any (\(CursorPosition x y) -> x == pos && y == rowIndex) positionsToHighlight
 
 charToImage :: Char -> Bool -> Vty.Image
 charToImage c highlight = Vty.char attr c
   where
-    attr = if highlight
-           then Vty.defAttr `Vty.withForeColor` Vty.red
-           else Vty.defAttr `Vty.withForeColor` Vty.blue
-
-findWordPositions :: Vec.Vector Char -> Vec.Vector (Vec.Vector Char) -> Vec.Vector (Vec.Vector CursorPosition)
-findWordPositions word = Vec.imap (findWordInRow 0)
-  where
-    findWordInRow :: Int -> Int -> Vec.Vector Char -> Vec.Vector CursorPosition
-    findWordInRow col rowIndex row
-      | col >= Vec.length row = Vec.empty  -- End of row, no more words to find
-      | otherwise =
-          let extractedWord = extractWordAt col row
-              wordEndIndex = col + Vec.length extractedWord - 1
-          in if extractedWord == word
-             then createPositions col wordEndIndex rowIndex Vec.++ findWordInRow (wordEndIndex + 1) rowIndex row
-             else findWordInRow (col + 1) rowIndex row
-          --   
-
-createPositions :: Int -> Int -> Int -> Vec.Vector CursorPosition
-createPositions x1 x2 y = Vec.generate (x2 - x1 + 1) (\i -> CursorPosition (x1 + i) y)
-
-extractWordAt :: Int -> Vec.Vector Char -> Vec.Vector Char
-extractWordAt x row = word
-  where
-    (before, after) = Vec.splitAt x row
-    findIndexUntilSpace word = Vec.length (Vec.takeWhile (/= ' ') word)
-    startOffset = findIndexUntilSpace $ Vec.reverse before
-    endOffset = findIndexUntilSpace after
-    startIndex = x - startOffset
-    endIndex = x + endOffset
-    word = Vec.take endIndex (Vec.drop startIndex row)
+    attr =
+      if highlight
+        then Vty.defAttr `Vty.withForeColor` Vty.red
+        else Vty.defAttr `Vty.withForeColor` Vty.white
 
 createImageText :: Vec.Vector (Vec.Vector Char) -> Vty.Image
 createImageText buffer = Vty.vertCat $ Vec.toList $ Vec.imap rowToImage buffer
@@ -171,7 +134,6 @@ createImageRow buffer sortedPositionsToHighlight = Vty.vertCat $ Vec.toList $ Ve
     rowToImage :: Int -> Vec.Vector Char -> Vty.Image
     rowToImage index row = displayText (show index ++ " ") Vty.<|> displayText (Vec.toList row)
 
-
 createImageForReadFileMode :: Vec.Vector (Vec.Vector Char) -> String -> String -> Vty.Image
 createImageForReadFileMode buffer title text =
   let titleBarImg = createTitleBar title
@@ -182,11 +144,17 @@ createImageForReadFileMode buffer title text =
     rowToImage :: Vec.Vector Char -> Vty.Image
     rowToImage row = displayText (Vec.toList row)
 
+vector2DToString :: Vec.Vector (Vec.Vector Char) -> String
+vector2DToString matrix =
+    let rows = Vec.toList matrix
+        lines = map (concatMap (:[])) rows
+    in intercalate "\n" lines
+
 createTitleBar :: String -> Vty.Image
 createTitleBar = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.green)
 
 displayText :: String -> Vty.Image
-displayText = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.yellow)
+displayText = Vty.string (Vty.defAttr `Vty.withForeColor` Vty.white)
 
 getWindowConfig :: Vty.Vty -> IO Window
 getWindowConfig vty = do

@@ -1,0 +1,8 @@
+map = |list, op| if(is_empty(list)) list else {
+  head_l = head(list)
+  tail_l = tail(list)
+  concat([op(head_l)], map(tail_l, op))
+}
+my_list = [1,2,3]
+times_two = map(my_list, mult(2))
+print(times_two)

@@ -1,0 +1,10 @@
+fib = |x| {
+  if (less_than(x,2)) x
+  else plus(fib(minus(x, 1)), fib(minus(x, 2)))
+}
+print(fib(0))   # 0
+print(fib(1))   # 1
+print(fib(2))   # 1
+print(fib(5))   # 5
+print(fib(10))  # 55
+print(fib(19))  # 4181

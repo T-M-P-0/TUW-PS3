@@ -1,0 +1,5 @@
+print(plus(0, 0))
+print(plus(0, 1))
+print(plus(1, 1))
+print(plus(2, 3))
+print(plus(12, 16))

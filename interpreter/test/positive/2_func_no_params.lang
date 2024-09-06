@@ -1,0 +1,4 @@
+my_func = || {
+  print(plus(0, 0))
+}
+my_func()
